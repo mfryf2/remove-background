@@ -808,7 +808,11 @@
           lastPanX: 0,
           lastPanY: 0,
           mouseDownTime: 0,
-          mouseHasMoved: false
+          mouseHasMoved: false,
+          // API 配置：根据当前协议自动选择
+          apiUrl: window.location.protocol === 'https:' 
+            ? 'https://172.105.225.120:8080/human_matting'  // HTTPS 环境
+            : 'http://172.105.225.120:8080/human_matting'   // HTTP 环境
         };
       },
       methods: {
@@ -859,11 +863,16 @@
           formData.append('human_matting_model', 'hivision_modnet');
           formData.append('dpi', '300');
 
-          fetch('http://172.105.225.120:8080/human_matting', {
+          fetch(this.apiUrl, {
             method: 'POST',
             body: formData
           })
-          .then(response => response.json())
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+          })
           .then(data => {
             if (data.status === true && data.image_base64) {
               const base64Data = data.image_base64.replace(/^data:image\/\w+;base64,/, '');
@@ -902,7 +911,11 @@
           })
           .catch(error => {
             console.error('处理失败：', error);
-            alert('处理失败，请检查网络连接后重试');
+            // 提供更详细的错误信息
+            const errorMsg = error.message.includes('Failed to fetch') 
+              ? '无法连接到服务器。可能原因：\n1. 服务器未启用 HTTPS（Vercel 需要 HTTPS）\n2. CORS 跨域配置问题\n3. 网络连接问题'
+              : `处理失败：${error.message}`;
+            alert(errorMsg);
             this.isProcessing = false;
           });
         },
