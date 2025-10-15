@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>背景擦除工具</title>
+  <!-- 引入 Vue.js 3 -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
+  <!-- 引入 Font Awesome -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 头部样式 */
+    .header {
+      background: rgba(255, 255, 255, 0.95);
+      padding: 20px 40px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 24px;
+      font-weight: 700;
+      color: #667eea;
+    }
+
+    .logo i {
+      font-size: 28px;
+    }
+
+    /* 主容器 */
+    .main-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .content-wrapper {
+      max-width: 900px;
+      width: 100%;
+    }
+
+    /* 结果展示区 */
+    .result-section {
+      background: white;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      position: relative;
+    }
+
+    .result-toolbar {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      padding: 20px;
+      background: #f6f8fa;
+      border-bottom: 1px solid #e1e4e8;
+    }
+
+    .tool-button {
+      padding: 10px 20px;
+      border: 2px solid #667eea;
+      background: white;
+      color: #667eea;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tool-button:hover {
+      background: #667eea;
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .tool-button.active {
+      background: #667eea;
+      color: white;
+    }
+
+    /* 图像对比区域 */
+    .image-compare-container {
+      position: relative;
+      width: 100%;
+      height: 500px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: 
+        linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+        linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+        linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      background-color: #ffffff;
+    }
+    
+    .image-compare-container.has-image {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.95) 0%, rgba(118, 75, 162, 0.95) 100%);
+      padding: 20px;
+      box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.1);
+    }
+    
+    .zoom-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+      cursor: zoom-in;
+    }
+    
+    .zoom-hint {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 10;
+    }
+    
+    .zoom-container:hover .zoom-hint {
+      opacity: 1;
+    }
+    
+    .zoom-container.dragging .zoom-hint {
+      opacity: 0 !important;
+    }
+    
+    .zoom-container.zoomed {
+      cursor: grab;
+    }
+    
+    .zoom-container.zoomed.dragging {
+      cursor: grabbing;
+    }
+    
+    .zoom-container.zoomed.dragging::after {
+      opacity: 0;
+    }
+    
+    .zoom-content {
+      transition: transform 0.3s ease;
+      transform-origin: center center;
+      will-change: transform;
+    }
+    
+    .zoom-content.dragging {
+      transition: none;
+    }
+
+    .image-wrapper {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      max-height: 100%;
+      height: auto;
+      background: 
+        linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+        linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+        linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .image-wrapper img {
+      display: block;
+      max-width: 100%;
+      max-height: 460px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      transition: transform 0.3s ease;
+    }
+
+    /* 对比视图 */
+    .compare-view {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      max-height: 100%;
+      height: auto;
+      background: 
+        linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+        linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+        linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .compare-view .image-wrapper {
+      background: none;
+    }
+    
+    .compare-view .image-wrapper.image-processed {
+      position: relative;
+      z-index: 1;
+      display: inline-block;
+    }
+
+    .compare-view .image-wrapper.image-original {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+    }
+    
+    .compare-view .image-wrapper.image-original img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* 滑块线条 - 只在有动画class时才有动画 */
+    .slider-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 4px;
+      background: #667eea;
+      z-index: 3;
+      cursor: ew-resize;
+    }
+
+    .slider-line.animate {
+      animation: slideToRight 2s ease-out forwards;
+    }
+
+    @keyframes slideToRight {
+      from {
+        left: 0;
+      }
+      to {
+        left: 100%;
+      }
+    }
+
+    .slider-handle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 48px;
+      height: 48px;
+      background: white;
+      border: 4px solid #667eea;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .slider-handle i {
+      font-size: 20px;
+      color: #667eea;
+    }
+
+    /* 简单展示模式 */
+    .simple-display {
+      display: none;
+    }
+
+    .simple-display.active {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 上传提示区域 */
+    .upload-prompt {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: #999;
+      z-index: 1;
+    }
+
+    .upload-prompt i {
+      font-size: 80px;
+      margin-bottom: 20px;
+      color: #ddd;
+    }
+
+    .upload-prompt-text {
+      font-size: 20px;
+      margin-bottom: 30px;
+    }
+
+    .upload-button {
+      padding: 15px 40px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .upload-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    /* 加载遮罩层 */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.95) 0%, rgba(118, 75, 162, 0.95) 100%);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .loading-content {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .loading-image {
+      max-width: calc(100% - 40px);
+      max-height: 460px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      position: relative;
+      z-index: 1;
+      border-radius: 8px;
+    }
+
+    /* 闪烁星星 */
+    .star {
+      position: absolute;
+      color: #FFD700;
+      opacity: 0;
+      z-index: 10;
+    }
+
+    @keyframes twinkle {
+      0%, 100% {
+        opacity: 0;
+        transform: scale(0.8);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.2);
+      }
+    }
+
+    .loading-text {
+      display: none;
+      margin-top: 30px;
+      color: white;
+      font-size: 18px;
+      font-weight: 600;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .loading-dots span {
+      animation: blink 1.4s infinite both;
+    }
+
+    .loading-dots span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .loading-dots span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes blink {
+      0%, 80%, 100% {
+        opacity: 0;
+      }
+      40% {
+        opacity: 1;
+      }
+    }
+
+    /* 按钮区域 */
+    .action-section {
+      padding: 30px 40px;
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      background: #f6f8fa;
+    }
+
+    .action-button {
+      padding: 16px 40px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .download-button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .download-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    .new-image-button {
+      background: white;
+      color: #667eea;
+      border: 2px solid #667eea;
+    }
+
+    .new-image-button:hover {
+      background: #f0f3ff;
+    }
+
+    /* 缩略图历史 */
+    .thumbnails-section {
+      padding: 20px;
+      background: #f6f8fa;
+      border-top: 1px solid #e1e4e8;
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      align-items: center;
+    }
+
+    .thumbnail-item {
+      flex-shrink: 0;
+      width: 80px;
+      height: 80px;
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      border: 3px solid transparent;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .thumbnail-item:hover {
+      transform: scale(1.05);
+    }
+
+    .thumbnail-item.active {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .thumbnail-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .add-thumbnail {
+      flex-shrink: 0;
+      width: 80px;
+      height: 80px;
+      border-radius: 12px;
+      border: 2px dashed #667eea;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: #667eea;
+      font-size: 32px;
+    }
+
+    .add-thumbnail:hover {
+      background: #f0f3ff;
+      transform: scale(1.05);
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+      .image-compare-container {
+        height: 400px;
+      }
+      
+      .image-wrapper img {
+        max-height: 360px;
+      }
+      
+      .loading-image {
+        max-height: 360px;
+      }
+
+      .action-section {
+        flex-direction: column;
+        padding: 20px;
+      }
+
+      .action-button {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .thumbnails-section {
+        padding: 15px;
+      }
+
+      .thumbnail-item, .add-thumbnail {
+        width: 60px;
+        height: 60px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- 头部 -->
+    <header class="header">
+      <div class="header-content">
+        <div class="logo">
+          <i class="fas fa-magic"></i>
+          <span>背景擦除工具</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-container">
+      <div class="content-wrapper">
+        <div class="result-section">
+          <!-- 工具栏 -->
+          <div class="result-toolbar" v-if="currentImage">
+            <button 
+              class="tool-button" 
+              :class="{ active: viewMode === 'compare' }"
+              @click="switchToCompare"
+            >
+              <i class="fas fa-sliders-h"></i>
+              对比视图
+            </button>
+            <button 
+              class="tool-button"
+              :class="{ active: viewMode === 'original' }"
+              @click="viewMode = 'original'; resetZoom()"
+            >
+              <i class="fas fa-image"></i>
+              原图
+            </button>
+            <button 
+              class="tool-button"
+              :class="{ active: viewMode === 'processed' }"
+              @click="viewMode = 'processed'; resetZoom()"
+            >
+              <i class="fas fa-check-circle"></i>
+              去背景
+            </button>
+          </div>
+
+          <!-- 图像展示区 -->
+          <div class="image-compare-container" :class="{ 'has-image': currentImage }">
+            <!-- 没有图片时的上传提示 -->
+            <div v-if="!currentImage" class="upload-prompt">
+              <i class="fas fa-cloud-upload-alt"></i>
+              <div class="upload-prompt-text">上传图片开始处理</div>
+              <button class="upload-button" @click="triggerFileSelect">
+                <i class="fas fa-image"></i>
+                选择图片
+              </button>
+            </div>
+
+            <!-- 有图片时显示内容 -->
+            <template v-if="currentImage">
+              <!-- 对比模式 -->
+              <div v-if="viewMode === 'compare'" class="compare-view" :key="'compare-' + compareKey">
+                <!-- 底层：去背景图（完整显示） -->
+                <div class="image-wrapper image-processed">
+                  <img :src="currentImage.processed" alt="去背景">
+                </div>
+                <!-- 上层：原图（从左边裁剪） -->
+                <div 
+                  class="image-wrapper image-original" 
+                  ref="originalImageWrapper"
+                  :style="{ clipPath: `inset(0 0 0 ${sliderPosition}%)` }"
+                >
+                  <img :src="currentImage.original" alt="原图">
+                </div>
+                <div 
+                  class="slider-line" 
+                  ref="sliderLine"
+                  :class="{ animate: shouldAnimate }"
+                  :style="{ left: sliderPosition + '%' }"
+                  @mousedown="startDrag"
+                  @animationend="onAnimationEnd"
+                >
+                  <div class="slider-handle">
+                    <i class="fas fa-arrows-alt-h"></i>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 原图模式 -->
+              <div 
+                v-if="viewMode === 'original'" 
+                class="zoom-container simple-display active"
+                :class="{ zoomed: zoomLevel > 1, dragging: isPanning }"
+              >
+                <div 
+                  class="zoom-content"
+                  :class="{ dragging: isPanning }"
+                  :style="{ transform: `scale(${zoomLevel}) translate(${panX}px, ${panY}px)` }"
+                  @mousedown="handleImageMouseDown"
+                >
+                  <div class="image-wrapper">
+                    <img :src="currentImage.original" alt="原图" draggable="false">
+                  </div>
+                </div>
+                <div class="zoom-hint">
+                  {{ zoomLevel === 1 ? '点击放大' : zoomLevel === 1.5 ? '点击继续放大 (1.5x)' : '点击还原 (2x)' }}
+                </div>
+              </div>
+
+              <!-- 处理后模式 -->
+              <div 
+                v-if="viewMode === 'processed'" 
+                class="zoom-container simple-display active"
+                :class="{ zoomed: zoomLevel > 1, dragging: isPanning }"
+              >
+                <div 
+                  class="zoom-content"
+                  :class="{ dragging: isPanning }"
+                  :style="{ transform: `scale(${zoomLevel}) translate(${panX}px, ${panY}px)` }"
+                  @mousedown="handleImageMouseDown"
+                >
+                  <div class="image-wrapper">
+                    <img :src="currentImage.processed" alt="去背景" draggable="false">
+                  </div>
+                </div>
+                <div class="zoom-hint">
+                  {{ zoomLevel === 1 ? '点击放大' : zoomLevel === 1.5 ? '点击继续放大 (1.5x)' : '点击还原 (2x)' }}
+                </div>
+              </div>
+            </template>
+
+            <!-- 加载遮罩层 -->
+            <div v-if="isProcessing" class="loading-overlay">
+              <div class="loading-content">
+                <img :src="processingImageUrl" class="loading-image">
+                
+                <!-- 闪烁的小星星 -->
+                <div v-for="star in stars" :key="star.id" 
+                     class="star"
+                     :style="{
+                       left: star.x + '%',
+                       top: star.y + '%',
+                       fontSize: star.size + 'px',
+                       color: star.color,
+                       animation: `twinkle ${star.duration}s ease-in-out infinite`,
+                       animationDelay: star.delay + 's'
+                     }">
+                  ✦
+                </div>
+                
+                <div class="loading-text">
+                  正在移除背景<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="action-section" v-if="currentImage">
+            <button class="action-button download-button" @click="downloadImage">
+              <i class="fas fa-download"></i>
+              下载图片
+            </button>
+            <button class="action-button new-image-button" @click="triggerFileSelect">
+              <i class="fas fa-plus"></i>
+              上传新图片
+            </button>
+          </div>
+
+          <!-- 缩略图历史 -->
+          <div class="thumbnails-section">
+            <div class="add-thumbnail" @click="triggerFileSelect">
+              <i class="fas fa-plus"></i>
+            </div>
+            <div 
+              v-for="(item, index) in history" 
+              :key="item.id"
+              class="thumbnail-item"
+              :class="{ active: currentImage && currentImage.id === item.id }"
+              @click="switchToImage(item)"
+            >
+              <img :src="item.processed" :alt="'图片 ' + (index + 1)">
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 隐藏的文件输入 -->
+    <input type="file" accept="image/*" ref="fileInput" @change="handleFileSelect" class="file-input">
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          viewMode: 'processed', // compare, original, processed
+          currentImage: null, // { id, original, processed }
+          history: [], // 历史记录
+          isProcessing: false,
+          processingImageUrl: '',
+          stars: [],
+          compareKey: 0,
+          shouldAnimate: false,
+          sliderPosition: 0,
+          isDragging: false,
+          zoomLevel: 1, // 1, 1.5, 2
+          panX: 0,
+          panY: 0,
+          isPanning: false,
+          panStartX: 0,
+          panStartY: 0,
+          lastPanX: 0,
+          lastPanY: 0,
+          mouseDownTime: 0,
+          mouseHasMoved: false
+        };
+      },
+      methods: {
+        triggerFileSelect() {
+          this.$refs.fileInput.click();
+        },
+
+        handleFileSelect(event) {
+          const file = event.target.files[0];
+          if (file) {
+            this.processImage(file);
+          }
+          // 清空input，允许重复选择同一文件
+          event.target.value = '';
+        },
+
+        generateStars() {
+          const colors = ['#FFD700', '#FFA500', '#FFFF00', '#FFE4B5', '#FAFAD2'];
+          this.stars = [];
+          for (let i = 0; i < 20; i++) {
+            this.stars.push({
+              id: i,
+              x: Math.random() * 100,
+              y: Math.random() * 100,
+              size: Math.random() * 15 + 10,
+              color: colors[Math.floor(Math.random() * colors.length)],
+              duration: Math.random() * 1.5 + 1,
+              delay: Math.random() * 2
+            });
+          }
+        },
+
+        processImage(file) {
+          // 读取原图
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            this.processingImageUrl = e.target.result;
+          };
+          reader.readAsDataURL(file);
+
+          // 生成星星并显示加载
+          this.generateStars();
+          this.isProcessing = true;
+
+          // 调用API进行背景擦除
+          const formData = new FormData();
+          formData.append('input_image', file);
+          formData.append('human_matting_model', 'hivision_modnet');
+          formData.append('dpi', '300');
+
+          fetch('http://172.105.225.120:8080/human_matting', {
+            method: 'POST',
+            body: formData
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.status === true && data.image_base64) {
+              const base64Data = data.image_base64.replace(/^data:image\/\w+;base64,/, '');
+              const processedUrl = `data:image/png;base64,${base64Data}`;
+              
+              // 创建新的历史记录
+              const newImage = {
+                id: Date.now(),
+                original: this.processingImageUrl,
+                processed: processedUrl
+              };
+
+              // 添加到历史记录
+              this.history.unshift(newImage);
+              
+              // 设置为当前图片
+              this.currentImage = newImage;
+              
+              // 先关闭加载状态
+              this.isProcessing = false;
+              
+              // 延迟一下再切换到对比视图并播放动画
+              setTimeout(() => {
+                this.viewMode = 'compare';
+                this.compareKey++;
+                this.sliderPosition = 0;
+                this.resetZoom();
+                
+                // 播放滑块动画
+                this.animateSlider();
+              }, 100);
+            } else {
+              alert('背景擦除失败，请重试');
+              this.isProcessing = false;
+            }
+          })
+          .catch(error => {
+            console.error('处理失败：', error);
+            alert('处理失败，请检查网络连接后重试');
+            this.isProcessing = false;
+          });
+        },
+
+        switchToImage(item) {
+          this.currentImage = item;
+          this.viewMode = 'processed';
+          this.resetZoom();
+        },
+
+        switchToCompare() {
+          this.viewMode = 'compare';
+          this.compareKey++;
+          this.sliderPosition = 0;
+          this.resetZoom();
+          
+          // 使用 JavaScript 动画同步更新 sliderPosition
+          this.animateSlider();
+        },
+
+        animateSlider() {
+          const duration = 2000; // 2秒动画
+          const startTime = Date.now();
+          const startPosition = 0;
+          const endPosition = 100;
+          
+          const animate = () => {
+            const currentTime = Date.now();
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // 使用 ease-out 缓动函数
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            
+            // 更新滑块位置
+            this.sliderPosition = startPosition + (endPosition - startPosition) * easeOut;
+            
+            // 如果动画未完成，继续下一帧
+            if (progress < 1) {
+              requestAnimationFrame(animate);
+            } else {
+              this.sliderPosition = 100; // 确保最终值精确
+            }
+          };
+          
+          requestAnimationFrame(animate);
+        },
+
+        onAnimationEnd() {
+          // CSS动画结束回调，保留以防需要
+          this.shouldAnimate = false;
+        },
+
+        startDrag(event) {
+          this.isDragging = true;
+          this.shouldAnimate = false; // 停止动画
+          document.addEventListener('mousemove', this.onDrag);
+          document.addEventListener('mouseup', this.stopDrag);
+          event.preventDefault();
+        },
+
+        onDrag(event) {
+          if (!this.isDragging) return;
+          
+          const container = this.$refs.sliderLine.parentElement;
+          const rect = container.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+          
+          this.sliderPosition = percentage;
+        },
+
+        stopDrag() {
+          this.isDragging = false;
+          document.removeEventListener('mousemove', this.onDrag);
+          document.removeEventListener('mouseup', this.stopDrag);
+        },
+
+        downloadImage() {
+          if (!this.currentImage) return;
+          const link = document.createElement('a');
+          link.href = this.currentImage.processed;
+          link.download = `removed-bg-${this.currentImage.id}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        },
+
+        toggleZoom() {
+          // 循环放大：1 -> 1.5 -> 2 -> 1
+          if (this.zoomLevel === 1) {
+            this.zoomLevel = 1.5;
+          } else if (this.zoomLevel === 1.5) {
+            this.zoomLevel = 2;
+          } else {
+            this.zoomLevel = 1;
+            this.panX = 0;
+            this.panY = 0;
+            this.lastPanX = 0;
+            this.lastPanY = 0;
+          }
+        },
+
+        resetZoom() {
+          this.zoomLevel = 1;
+          this.panX = 0;
+          this.panY = 0;
+          this.lastPanX = 0;
+          this.lastPanY = 0;
+        },
+
+        handleImageMouseDown(event) {
+          this.mouseDownTime = Date.now();
+          this.mouseHasMoved = false;
+          this.panStartX = event.clientX;
+          this.panStartY = event.clientY;
+          
+          if (this.zoomLevel > 1) {
+            // 放大状态下，准备拖动
+            this.lastPanX = this.panX;
+            this.lastPanY = this.panY;
+            
+            document.addEventListener('mousemove', this.onPan);
+            document.addEventListener('mouseup', this.handleImageMouseUp);
+            event.preventDefault();
+          } else {
+            // 未放大状态下，等待鼠标抬起判断是否为点击
+            document.addEventListener('mousemove', this.trackMouseMove);
+            document.addEventListener('mouseup', this.handleImageMouseUp);
+          }
+        },
+
+        trackMouseMove(event) {
+          // 检测鼠标是否移动了超过5像素
+          const deltaX = Math.abs(event.clientX - this.panStartX);
+          const deltaY = Math.abs(event.clientY - this.panStartY);
+          if (deltaX > 5 || deltaY > 5) {
+            this.mouseHasMoved = true;
+          }
+        },
+
+        handleImageMouseUp(event) {
+          const clickDuration = Date.now() - this.mouseDownTime;
+          
+          // 判断是点击还是拖动：时间短且鼠标没有移动
+          if (clickDuration < 300 && !this.mouseHasMoved) {
+            // 是点击，执行放大
+            this.toggleZoom();
+          }
+          
+          this.isPanning = false;
+          document.removeEventListener('mousemove', this.onPan);
+          document.removeEventListener('mousemove', this.trackMouseMove);
+          document.removeEventListener('mouseup', this.handleImageMouseUp);
+        },
+
+        onPan(event) {
+          if (this.zoomLevel === 1) return;
+          
+          this.isPanning = true;
+          this.mouseHasMoved = true;
+          
+          const deltaX = (event.clientX - this.panStartX) / this.zoomLevel;
+          const deltaY = (event.clientY - this.panStartY) / this.zoomLevel;
+          
+          this.panX = this.lastPanX + deltaX;
+          this.panY = this.lastPanY + deltaY;
+        }
+      },
+      mounted() {
+        // 初始化
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
