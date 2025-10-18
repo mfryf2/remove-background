@@ -1,0 +1,21 @@
+# robots.txt for AI背景擦除工具
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://remove-background.vercel.app/sitemap.xml
+
+# 搜索引擎特定设置
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+# 爬取延迟（秒）
+Crawl-delay: 1
+
