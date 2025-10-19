@@ -1006,7 +1006,7 @@
           // 调用API进行背景擦除
           const formData = new FormData();
           formData.append('input_image', file);
-          formData.append('human_matting_model', 'hivision_modnet');
+          formData.append('human_matting_model', 'rmbg-1.4');
           formData.append('dpi', '300');
 
           fetch(this.apiUrl, {
